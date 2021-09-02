@@ -21,3 +21,5 @@ horizontally, recording the pixel shift distance and the time taken, object spee
 Detailed description and operation is contained in the docs folder.
 This works for me, so I won't be doing much updating. Feel free to fork and carry on.
 
+[pdf](/docs/HomeSpeedDetector.pdf)
+
