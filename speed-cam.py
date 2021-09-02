@@ -39,8 +39,8 @@ baseFileName = mypath[mypath.rfind("/")+1:mypath.rfind(".")]
 progName = os.path.basename(__file__)
 horiz_line = "----------------------------------------------------------------------"
 print(horiz_line)
-print("%s %s  vehicle tracking" % (progName, progVer))
-print("Motion Track Largest Moving Object and Calculate Speed per Calibration.")
+print("%s %s  home vehicle tracking" % (progName, progVer))
+print("Motion track largest moving object and calculate speed .")
 print(horiz_line)
 print("Loading  Wait ...")
 import time
@@ -68,19 +68,17 @@ import copy
 from speed_sql_db import SpeedDB
 from os import path
 
-#road= None # will contain all of the user variables for a particular location
-
 """
 Check for config.ini variable file to import and warn if not Found.
-Overlay status logging is not available yet since the logFilePath variable from config is needed before
+Overlay status logging is not available yet since the overlay name variable from config is needed before
 setting up logging for the overlay instance
 """
 from config import *
 # there are two loggers, the overall app and the instance of the selected overlay ( if any)
 try:
     #get the application logger setup from the conf file
-    log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logging.conf')
-    logging.config.fileConfig(log_file_path)
+    app_log_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logging.conf')
+    logging.config.fileConfig(app_log_file_path)
     appLogger=logging.getLogger('appLogger')
 except Exception as e:
     pass
@@ -102,11 +100,11 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setLevel(logging.DEBUG)
 consoleHandler.setFormatter(consoleFormatter)
 # set up the overlay logging file handler with limitation on log size option
-fileHandler=logging.handlers.RotatingFileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
-                                                 OVERLAYS_DIR,cfg.overlayName+'.log'),
+overlay_log_path=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                 OVERLAYS_DIR,cfg.overlayName+'.log')
+fileHandler=logging.handlers.RotatingFileHandler(overlay_log_path,
                                                  maxBytes=cfg.maxLogSize,
                                                  backupCount=cfg.logBackups)
-#fileHandler=logging.FileHandler(os.path.join(os.path.dirname(os.path.abspath(__file__)), OVERLAYS_DIR,cfg.overlayName+'.log'))
 fileHandler.setFormatter(fileFormatter)
 #create a logger specific to the overlay
 overlayLogger=logging.getLogger(cfg.overlayName +'Logger')
@@ -114,12 +112,12 @@ overlayLogger.propagate = 0
 
 if cfg.loggingToFile:# add console and file handling
     overlayLogger.addHandler(fileHandler)
-    overlayLogger.addHandler(consoleHandler)
-    #overlayLogger.debug('This message should go to the log file')
+    if cfg.verbose:
+        overlayLogger.addHandler(consoleHandler)
 elif cfg.verbose: #just console and all messages
     consoleHandler.setLevel(logging.DEBUG)
     overlayLogger.addHandler(consoleHandler)
-else: # just console but only critical meassages
+else: # just console but only critical messages
     consoleHandler.setLevel(logging.CRITICAL)
     overlayLogger.addHandler(consoleHandler)
  
@@ -293,6 +291,7 @@ class WebcamVideoStream:
         self.src = CAM_SRC
         self.cam_stream = cv2.VideoCapture(self.src)
         self.stream_start_time= time.time()
+        
         if not isFile:
             self.cam_stream.set(3, CAM_WIDTH)
             self.cam_stream.set(4, CAM_HEIGHT)
@@ -305,8 +304,9 @@ class WebcamVideoStream:
             self.stream_start_time=os.path.getctime(self.src)
             self.isLoop=isLoop
         if saveStream:
+            savefilename= cfg.overlayName+"_calibrate.mp4"
             fourccCode = cv2.VideoWriter_fourcc(*'mp4v')# for avi use XDIV codec
-            self.vw=self._open_writer(fourcc=fourccCode)
+            self.vw=self._open_writer(fourcc=fourccCode,strfilename=savefilename)
             
 
     def start(self):
@@ -321,6 +321,8 @@ class WebcamVideoStream:
 
     def update(self):
         """ keep looping infinitely until the thread is stopped """
+        frame_count=0
+        self.fps_start_time=time.time()
         while not self.stopped:
             # if the thread indicator variable is set, stop the thread
             #if self.stopped:
@@ -341,6 +343,8 @@ class WebcamVideoStream:
                 self.q.put((self.frame,(self.stream_start_time+(self.cam_stream.get(cv2.CAP_PROP_POS_MSEC)/1000))))# convert to seconds for compatibility
                 if self.saveStream:
                     self._write(self.frame)
+                frame_count=self.get_latest_fps(frame_count)
+                
         self.cam_stream.release()    #release resources
 
     def read(self):
@@ -396,20 +400,25 @@ class WebcamVideoStream:
         overlayLogger.info("Estimated frames per second : %.2f period :%.2f mS",fps,period)
         return fps
       
-    def get_current_fps(self,start_time, frame_count):
+    def get_latest_fps(self, frame_count):
         """ Calculate and display frames per second processing """
-        if frame_count >= 1000:
-            duration = float(time.time() - start_time)
-            FPS = float(frame_count / duration)
-            overlayLogger.info("Processed %.2f  fps over Last %i Frames", FPS, frame_count)
+        #fps=0
+        if frame_count >= 300:
+            duration = float(time.time() - self.fps_start_time)
+            self.fps = float(frame_count / duration)
+            if cfg.log_fps ==True:
+                overlayLogger.info("Reading at %.2f fps over last %i frames", self.fps, frame_count)
+
             frame_count = 0
-            start_time = time.time()# reset time for next count
+            self.fps_start_time = time.time()# reset time for next count
         else:
             frame_count += 1
-        return start_time, frame_count
+        return frame_count
     
-    def _open_writer(self,fourcc,filename='calibrate.mp4',fps=30,imgsize=(640,352)):
-        self.videoWriter=cv2.VideoWriter(filename,fourcc,fps,imgsize)    
+    
+    
+    def _open_writer(self,fourcc,strfilename,fps=30,imgsize=(640,352)):
+        self.videoWriter=cv2.VideoWriter(strfilename,fourcc,fps,imgsize)    
         return self.videoWriter
 
     def _write(self,frame):
@@ -437,6 +446,7 @@ def init_settings():
         os.makedirs(image_path)
     os.chdir(image_path)
     os.chdir(current_working_directory)
+    #not supported in this version
     """
     if imageRecentMax > 0:
         if not os.path.isdir(imageRecentDir):
@@ -446,16 +456,18 @@ def init_settings():
             except OSError as err:
                 overlayLogger.error('Failed to Create Folder %s - %s',
                               imageRecentDir, err)
-    """
-    """
+    
+    
     if not os.path.isdir(search_dest_path):
         overlayLogger.info("Creating Search Folder %s", search_dest_path)
         os.makedirs(search_dest_path)
-    """
+    
     if not os.path.isdir(html_path):
         overlayLogger.info("Creating html Folder %s", html_path)
         os.makedirs(html_path)
+    
     os.chdir(current_working_directory)
+    """
     if cfg.verbose:
         print(horiz_line)
         print("Note: To Send Full Output to File Use command")
@@ -465,9 +477,9 @@ def init_settings():
         print(horiz_line)
         print("")
         print("Debug Messageds .. verbose=%s  display_fps=%s calibrate=%s"
-              % (cfg.verbose, cfg.display_fps, cfg.calibrate))
+              % (cfg.verbose, cfg.log_fps, cfg.calibrate))
         print("                  show_out_range=%s" % cfg.show_out_range)
-        print("Plugins ......... pluginEnable=%s  pluginName=%s"
+        print("Overlays ......... overlayEnable=%s  overlayName=%s"
               % (cfg.overlayEnable, cfg.overlayName))
         print("Calibration ..... cal_obj_px_L2R=%i px  cal_obj_mm_L2R=%i mm  speed_conv_L2R=%.5f"
               % (cfg.cal_obj_px_L2R, cfg.cal_obj_mm_L2R, rc.speed_conv_L2R))
@@ -479,8 +491,8 @@ def init_settings():
             print("                  (Change Settings in %s)" % cfg.configFilePath)
         print("Logging ......... Log_data_to_CSV=%s  log_filename=%s.csv (CSV format)"
               % (cfg.log_data_to_CSV, baseFileName))
-        print("                  loggingToFile=%s  logFilePath=%s"
-              % (cfg.loggingToFile, cfg.logFilePath))
+        #print("                  loggingToFile=%s  logFilePath=%s"
+         #     % (cfg.loggingToFile, cfg.logFilePath))
         print("                  SQLITE3 DB_PATH=%s  DB_TABLE=%s"
               % (db_path, cfg.DB_TABLE))
         print("Speed Trigger ... Log only if max_speed_over > %i %s"
@@ -495,8 +507,8 @@ def init_settings():
               % (x_left, x_right))
         print("                  If  max_speed_over < %i %s"
               % (cfg.max_speed_over, rc.speed_units))
-        print("                  If  event_timeout > %.2f seconds Start New Track"
-              % (cfg.event_timeout))
+        #print("                  If  event_timeout > %.2f seconds Start New Track"
+         #     % (cfg.event_timeout))
         print("                  track_timeout=%.2f sec wait after Track Ends"
               " (avoid retrack of same object)"
               % (cfg.track_timeout))
@@ -554,9 +566,10 @@ def logging_notifications():
 
     if cfg.verbose:
         if cfg.loggingToFile:
-            print("Logging to File %s (Console Messages Disabled)" % cfg.logFilePath)
+            print("Logging to File %s and Console" % overlay_log_path)
+           #print("Logging to File %s and Console" % cfg.logFilePath)
         else:
-            overlayLogger.info("Logging to Console per Variable verbose=True")
+            overlayLogger.info("Logging to Console only")
 
         if cfg.gui_window_on:
             appLogger.info("To quit,press q on GUI window or ctrl-c in this terminal")
@@ -873,10 +886,6 @@ class SpeedTrack(object):
                 vs.stop()
                 
                 break
-
-              
-            if cfg.display_fps:   # Optionally show motion image processing loop fps
-                self.fps_time, self.frame_count = self.get_current_fps(self.fps_time, self.frame_count)
             if self.is_file_src:
                 time.sleep(1.0 / vs.fps)
 
@@ -1025,7 +1034,7 @@ class SpeedTrack(object):
         if (x > 1 and (x + w) < (self.x_left+1 )):
             return True
         return False    
-        
+    """    
     def _check_timeout(self, event_timer,last_time):
         # Check if last motion event timed out
         reset_time_diff = event_timer-last_time
@@ -1035,7 +1044,7 @@ class SpeedTrack(object):
                                             reset_time_diff, cfg.event_timeout)
             return errors.ERROR_TIMEOUT
         return errors.ERROR_SUCCESS                                            
-
+    """
     def _check_centroid_dist(self,veh : Vehicle,centroid):
         if veh==None:
             return errors.ERROR_OUT_OF_RANGE
@@ -1549,22 +1558,22 @@ class SpeedTrack(object):
     
     def save_to_csv(self,data_to_append):
         """ Store date to a comma separated value file """
-        log_file_path = os.path.join(baseDir, DB_DIR, cfg.overlayName+".csv")
-        if not os.path.exists(log_file_path):
-            open(log_file_path, 'w').close()
-            f = open(log_file_path, 'ab')
+        data_file_path = os.path.join(baseDir, DB_DIR, cfg.overlayName+".csv")
+        if not os.path.exists(data_file_path):
+            open(data_file_path, 'w').close()
+            f = open(data_file_path, 'ab')
             #TODO if needed, the header needs formatting and aligning with the csv data rows.
             # header_text = ('"YYYY-MM-DD HH:MM:SS","Speed","Unit",Variance,
             #                  "    Speed Photo Path            ",
             #                  "X","Y","W","H","Area","Direction"' + "\n")
             # f.write( header_text )
             f.close()
-            overlayLogger.info("Created new data csv file %s", log_file_path)
+            overlayLogger.info("Created new data csv file %s", data_file_path)
         filecontents = data_to_append + "\n"
-        f = open(log_file_path, 'a+')
+        f = open(data_file_path, 'a+')
         f.write(filecontents)
         f.close()
-        overlayLogger.info("CSV - added speed data to %s", log_file_path)
+        overlayLogger.info("CSV - added speed data to %s", data_file_path)
         return
 
 #--------------------------------------------------------------------------------------------------
@@ -1715,7 +1724,7 @@ if __name__ == '__main__':
                 y_lower = int(img_height - y_upper)
 
             # setup buffer area to ensure contour is mostly contained in crop area
-            x_buf = int((x_right - x_left) / cfg.x_buf_adjust)
+            #x_buf = int((x_right - x_left) / cfg.x_buf_adjust)
 
             init_settings()  # Show variable settings
             rect=(x_left,x_right,y_upper,y_lower)

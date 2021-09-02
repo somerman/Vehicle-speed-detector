@@ -12,7 +12,7 @@ import sys
 import defaults
 import glob
 
-
+#TODO: rationalise python variable styles per pep 8
 progVer = "1.00"
 
 # this version doesn't support (external) image sign, but kept for ref.
@@ -203,15 +203,16 @@ class Config:
         self.gui_show_camera = Gui.getboolean('gui_show_camera',True) # True=Show the camera on gui windows. False=Don't Show (useful for image_sign)
         self.show_thresh_on = Gui.getboolean('show_thresh_on',False) # Display desktop GUI openCV cropped threshold window. True=Show, False=Don't Show
         self.show_crop_on =  Gui.getboolean('show_crop_on', False)   # Same as show_thresh_on but in color. True=Show, False=Don't Show (Default)
-        self.window_bigger=Gui.getfloat('window_bigger',1.0)
+        self.window_bigger=1.0
+        #self.window_bigger=Gui.getfloat('window_bigger',1.0)
         Logging=self.parser['Logging']
         self.verbose=Logging.getboolean('verbose',False) # True= Display basic status information on console False= Off
-        self.display_fps =Logging.getboolean('display_fps', False)    # True= Show average frame count every 1000 loops False= Off
+        self.log_fps =Logging.getboolean('log_fps', False)    # True= Show average frame count every 1000 loops False= Off
         self.log_data_to_CSV = Logging.getboolean('log_data_to_csv', True) # True= Save log data as CSV comma separated values  False= Off
         self.log_data_to_DB = Logging.getboolean('log_data_to_db', False) # True= Save log data to SQL database
         self.loggingToFile = Logging.getboolean('loggingToFile', False)  # True= Send logging to file False= No Logging to File
-        self.logFilePath = Logging.get('logFilePath','speed-cam.log')  # Location of log file when loggingToFile=True
-        self.maxLogSize= Logging.getfloat('maxLogSize',1E6)
+        #self.logFilePath = Logging.get('logFilePath','speed-cam.log')  # Location of log file when loggingToFile=True
+        self.maxLogSize= Logging.getint('maxLogSize',1E6)
         self.logBackups=Logging.getint('logBackups',0)
         Motion=self.parser['Motion']
         
@@ -223,9 +224,9 @@ class Config:
         self.x_diff_max = Motion.getint('x_diff_max', 40 ) # Default= 20 Exclude if max px away >= last motion event x position
         self.x_diff_min = Motion.getint('x_diff_min', 1)  # Default= 1 Exclude if min px away <= last event x position
         self.y_diff_max = Motion.getint('y_diff_max', 10)
-        self.x_buf_adjust = Motion.getint('x_buf_adjust',10)  # Default= 10 Divides motion Rect x for L&R Buffer Space to Ensure contours are in
+        #self.x_buf_adjust = Motion.getint('x_buf_adjust',10)  # Default= 10 Divides motion Rect x for L&R Buffer Space to Ensure contours are in
         self.track_timeout = Motion.getfloat('track_timeout', 1) # Default= 0.5 Optional seconds to wait after track End (Avoids dual tracking)
-        self.event_timeout = Motion.getfloat('event_timeout', 0.3) # Default= 0.3 seconds to wait for next motion event before starting new track
+        #self.event_timeout = Motion.getfloat('event_timeout', 0.3) # Default= 0.3 seconds to wait for next motion event before starting new track
         self.max_speed_over = Motion.getfloat('max_speed_over', 8)     # Exclude track if Speed less than or equal to value specified 0=All
                        # Can be useful to exclude pedestrians and/or bikes, Etc or track only fast objects
         self.max_speed_count= Motion.getfloat('max_speed_count', 65)  # dont't count anything over this speed, probably wrong
