@@ -1,4 +1,4 @@
-# home_speed_detector
+# Vehicle-speed-detector
 The home_speed_detection set of python scripts is designed to log vehicle numbers and speeds
 using a camera and image recognition to track vehicles. The resultant information can be used to
 inform local safety groups, councils and law enforcement of particular traffic issues, or to log traffic
