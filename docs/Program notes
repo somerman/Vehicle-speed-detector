@@ -1,0 +1,53 @@
+home_speed_detector is a set of python scripts designed to allow the capture of vehicle movements via image recognition. 
+The design is based on and inspired by earlier work, hopefully refined and honed to my particular requirement. 
+The output is really the csv/database file that can be used to visualise the data gathered, in external apps like Elastucsearch.
+I have tried to emphasise ease of use, and the ability for non-programmers to alter and set variables that affect performance by simple text files.
+I have also tried to separate functionality into units and classes. 
+The main file is speed-cam.py which can be launche din the usual way from a command line prompt in the project directory.
+Python 3 is used throughout and it is not suitable for 2.7. 
+Raspberry Pi support is included, but be aware of the limitations of processing - RPI 4B is probably a minimum platform and even this may give uncertain results under high loads. USB cameras can also be used, but the most versatile results are available with an IP camera that can be set up for lighting conditions and can be mounted to cope with adverse weather. 
+The program flow is:
+Check for and Import dependencies (cv2 being the main one not included in a standard python 3 distribution) 
+Retrieve initial settings from a config file using first the main config.ini file, then, if enabled the designated overlay ini file.
+Use the configured source and start a reading thread that runs continuously in background gathering images
+Run an image processing main thread that does the work, checking for exit once per loop. 
+Perform an orderly shutdown of threads when requested. 
+
+Running in parallel is Python's logging module, which serves information and error messages to the console and/or a log file. 
+
+And that's it. 
+
+So some detail. 
+The config.py module contains the Config class that is instantiated to hold the user-settable and program-necessary variables.
+This uses the Python configparser classes to retrieve and type-format values from the ini files. It also provides default values if the config.ini file fails or contains invalid ( or no) keys/values.
+An initial read of the config.ini file is made to determine if there is an overlay file specified. Overlay files overwrite the config.ini values if the keys are found to be the same.
+A detailed list of the variables is contained in the HomeSpeedDetector pdf file in the Docs section.
+
+The overlay file is a convenient way of holding multiple user setups, perhaps with different cameras/sources, or in different locations. As always, check the camera is working before connecting it to the program and set up the viewing angle, contrast, exposure and so on. 
+For debugging, but also for trying out locations, the file source is very useful. The file will be looped by default so you can see the same events over and over, and monitor any effects of changes you make. Also you don't haveto wait for vehicles to pass!
+Camera situations are unique to each deployment. Elevating the camera above the road gives more chance of separating lanes and avoiding pedestrians, but ground level will also work. 20 to 30 metres from the road is a good length and as perpendicular as possible. Image recognition is much more difficult with an angled camera because the  target appears to change size as it approaches and retreats from the camera. 
+High resolution adds nothing except processing time, a good compromise is 640x480, smaller may also work. 
+Image recognition and tracking is always performed in grayscale, so the camera source can be that as well. 
+
+Image collection is done in a separate thread. 
+Images are read from the source, timestamped and buffered as a tuple in a short fifo queue. This is to decouple any processing delays from the image reading. Having a timestamp that tracks the frame and is attached 'at the door' means that there are no variable timings later on and the timestamping is as close as possible to real time. 
+Ideally there would be a timestamp attached at source....
+The image processing loop can now retrieve the frame and timestamp from the queue at it's leisure, so long as the average processing time is at least as fast as the source frame rate. 
+OpenCV's image processing creates contours from the difference image created by subtracting the current image from the prevoious one. 
+We assume that the largest contour is a vehicle and create a vehicle object to track it. Deciding when the contour is no longer relevant is one of the trickier decisions. I use one or more of position, timeout and contour validity to estimate this. 
+It is important for vehicle counting that we don't count twice, so once a vehicle has been detected and tracked we stop looking for a short while ( skip frames) on the principle that if vehicles are that close there are going to be more than just counting problems...
+A tracking record is created for each contour event detected, that includes current and last position and the frame timestamp.
+From this we can calculate a postion and time difference and thus sample speed, which is also stored in the record. 
+Each vehicle ends up with multiple tracking records containing postition,timestamp and size information amongst others.
+Deciding when there is sufficient information to calculate a reliable speed is the subject of trial and error.
+Fewer than 5 samples probably gives too wide a variance, more than 10 risks missing high-speed targets.
+I use the python statistics module to calculate a mean speed and a standard deviation from the mean. 
+The first becomes the speed displayed and recorded for the vehicle. The second gives a figure of merit for the reliability of the mean.
+If the sample speeds vary widely, this will be a large number, possibly caused by noisy images, reflections and shadows on the target and other factors. An ideal number would be zero since this means that all the sample speeds are the same.
+Once the average speed is calculated, the track is finished and the vehicle discarded. 
+Depending on user preferences, the image from the last track is annotated with the speed and stored in the user-designated folder. Information is also assembled to create a record for the CSV file and/or  Database record. 
+Peripheral activities include monitoring and managing the image directory to control the number of images stored and limiting the total size used on disk, oldest files being deleted.
+Check the sources for code hints, let me know what needs clarifying through github, otherwise just play.
+
+
+
