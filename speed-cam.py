@@ -1373,7 +1373,7 @@ class SpeedTrack(object):
         # There are no subdirectories to deal with
         if cfg.calibrate:
             #log_time = datetime.datetime.now()
-            fullfilename,filename = self._set_image_file_name(self.speed_path, "calib-",frame_timestamp)
+            fullfilename,partfilename = self._set_image_file_name(self.speed_path, "calib-",frame_timestamp)
             prev_image = self.take_calibration_image(ave_speed,
                                                 fullfilename,
                                                 prev_image)
