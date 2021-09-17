@@ -120,8 +120,9 @@ class SpeedFileUtils(object):
                         subDirPath = self._subDirCreate(directory, prefix)
                     else:
                         logging.info('MaxFiles Not Exceeded in %s', subDirPath)
+        (head,tail)=os.path.split(subDirPath)
         os.path.abspath(subDirPath)
-        return subDirPath
+        return subDirPath,tail
 
     def _filesToDelete(self,mediaDirPath, extension):
         """ Return a list of files to be deleted """

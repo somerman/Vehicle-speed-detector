@@ -297,7 +297,8 @@ class WebcamVideoStream:
             self.cam_stream.set(4, CAM_HEIGHT)
             (self.grabbed, self.frame) = self.cam_stream.read()
             if self.grabbed :# the camera may not be connected
-                self.fps=self.__get_initial_fps(self.cam_stream)
+                #self.fps=self.__get_initial_fps(self.cam_stream)
+                self.fps= self.cam_stream.get(cv2.CAP_PROP_FPS)
         else:
             self.fps= self.cam_stream.get(cv2.CAP_PROP_FPS)
             self.grabbed=True# fake this
@@ -380,12 +381,14 @@ class WebcamVideoStream:
     def __get_initial_fps(self,cam):
         """Provides an estimate of the actual frame rate being received"""
         # Start time
-        num_frames = 120
+        num_frames = 30
         start = time.time()
 
 		# Grab a few frames
         for i in range(0, num_frames):
             ret, frame = cam.read()
+            if ret== False:
+                return 0
 
 		# End time]
         end = time.time()
@@ -604,7 +607,8 @@ class Vehicle(object):
         self.active=True
         self.FinalSpeed=0
         self.StdDev=0
-        
+        self.MoE=0
+          
     def _add_tracking_record(self,track ):
         
         self.track_list.append(track)
@@ -854,6 +858,9 @@ class SpeedTrack(object):
                         cv2.imshow(cv2_window_speed_sign, image_sign_view)
                 else:
                     self.vehicles.clear()# no contours so no vehicles
+            else:
+                if vs.stopped:
+                    return -1   # the source may have stopped.
             key= cv2.waitKey(1)
             
             if key == ord('m'):# invoke the mask drawer
@@ -1142,7 +1149,7 @@ class SpeedTrack(object):
                 prev_start_time = veh.cur_track_time
                 #self.event_timer = frame[1]
                             
-                if track_count >= cfg.track_counter:
+                if track_count > cfg.track_counter:
 
                     tot_track_dist = abs(veh.cur_track_x - self.vehicle_start_pos_x)
                     tot_track_time = abs(veh.cur_track_time-veh.track_list[0].track_time)
@@ -1153,6 +1160,7 @@ class SpeedTrack(object):
                         ave_speed = mean(veh.speed_list)
                         #variance = pvariance(veh.speed_list,ave_speed)
                         veh.StdDev= pstdev(veh.speed_list)
+                        veh.MoE=(veh.StdDev/math.sqrt(len(veh.speed_list)))*1.96 # mph, z=1.96 for 95% confidence
                         veh.FinalSpeed=ave_speed
                     # Track length exceeded so take process speed photo
                         if cfg.max_speed_count > ave_speed > cfg.max_speed_over :
@@ -1170,16 +1178,17 @@ class SpeedTrack(object):
                     
                             overlayLogger.info("Tracking complete- %s Ave %.1f %s,StdDev %.2f, Tracked %i px in %.3f sec, Calib %ipx %imm  ",
                                     veh.track_list[-1].direction,
-                                    ave_speed, rc.speed_units,
-                                    veh.StdDev,
+                                    veh.FinalSpeed, rc.speed_units,
+                                    veh.MoE,
                                     tot_track_dist,
                                     tot_track_time,
                                     cal_obj_px,
                                     cal_obj_mm
                                     )    
-                           
-                            fullfilename=self.save_speed_image(image2,ave_speed,veh,frame[1])
-                            self.write_speed_record(veh, fullfilename,ave_speed, cal_obj_mm, cal_obj_px,frame[1])
+                            print( veh.speed_list)
+                            (fullfilename,partfilename)=self.save_speed_image(image2,ave_speed,veh,frame[1])
+                            self.write_speed_record(veh, partfilename,ave_speed, cal_obj_mm, cal_obj_px,frame[1])
+                            #self.write_speed_record(veh, fullfilename,ave_speed, cal_obj_mm, cal_obj_px,frame[1])
                         if cfg.gui_window_on:
                             image2=self._show_screen_speed(veh,image2)
                         if cfg.spaceTimerHrs > 0:
@@ -1265,7 +1274,7 @@ class SpeedTrack(object):
 
     def _show_screen_speed(self,veh  :Vehicle, image):
         image1=image.copy()
-        image_text = ("Last Speed %.1f %s " % (veh.FinalSpeed,rc.speed_units))
+        image_text = ("Last Speed %.1f %s MoE +/- %.1f " %(veh.FinalSpeed,rc.speed_units,veh.MoE))
         text_x = 100
         #text_x = int((image_width / 2) - (len(image_text) * image_font_size / 3))
         if text_x < 2:
@@ -1286,7 +1295,7 @@ class SpeedTrack(object):
                                 log_time.minute,
                                 log_time.second,
                                 log_time.microsecond/100000))
-        log_timestamp = ("%s%04d-%02d-%02d %02d:%02d:%02d%s" %
+        log_timestamp = ("%s%04d-%02d-%02d %02d:%02d:%02d.%d%s" %
                                     (quote,
                                     log_time.year,
                                     log_time.month,
@@ -1294,6 +1303,7 @@ class SpeedTrack(object):
                                     log_time.hour,
                                     log_time.minute,
                                     log_time.second,
+                                    log_time.microsecond/100000,
                                     quote))
         m_area = veh.track_w*veh.track_h
         if webcam:
@@ -1327,7 +1337,7 @@ class SpeedTrack(object):
             
         # Format and Save Data to CSV Log File
         if cfg.log_data_to_CSV:
-            log_csv_time = ("%s%04d-%02d-%02d %02d:%02d:%02d%s"
+            log_csv_time = ("%s%04d-%02d-%02d %02d:%02d:%02d.%d%s"
                             % (quote,
                             log_time.year,
                             log_time.month,
@@ -1335,6 +1345,7 @@ class SpeedTrack(object):
                             log_time.hour,
                             log_time.minute,
                             log_time.second,
+                            log_time.microsecond/100000,
                             quote))
             log_csv_text = ("%s,%.1f,%s%s%s,%.1f,%s%s%s,%i,%s%s%s,%s%s%s"
                             % (log_csv_time,
@@ -1369,7 +1380,7 @@ class SpeedTrack(object):
         else:
             # Check if subdirectories configured
             # and create new subdirectory if required
-            self.speed_path = sfu.subDirChecks(cfg.imageSubDirMaxHours,
+            (self.speed_path,tail) = sfu.subDirChecks(cfg.imageSubDirMaxHours,
                                     cfg.imageSubDirMaxFiles,
                                     image_path, cfg.image_prefix)
 
@@ -1383,7 +1394,7 @@ class SpeedTrack(object):
             else:
                 # create image file name path
                 fullfilename,filename = self._set_image_file_name(self.speed_path, cfg.image_prefix,frame_timestamp)
-
+                partfilename= os.path.join(tail,filename)
         # Add motion rectangle to image if required
         if cfg.image_show_motion_area:
             prev_image = self.speed_image_add_lines(prev_image, colours.cvRed)
@@ -1446,7 +1457,7 @@ class SpeedTrack(object):
         else:
             cv2.imwrite(fullfilename, big_image)
         
-        return fullfilename
+        return fullfilename,partfilename
     
     def _set_image_file_name(self,path, prefix,frame_timestamp):
         """ build image file names by number sequence or date/time Added tenth of second"""
@@ -1561,12 +1572,11 @@ class SpeedTrack(object):
         data_file_path = os.path.join(baseDir, DB_DIR, cfg.overlayName+".csv")
         if not os.path.exists(data_file_path):
             open(data_file_path, 'w').close()
-            f = open(data_file_path, 'ab')
+            f = open(data_file_path, 'a+')
             #TODO if needed, the header needs formatting and aligning with the csv data rows.
-            # header_text = ('"YYYY-MM-DD HH:MM:SS","Speed","Unit",Variance,
-            #                  "    Speed Photo Path            ",
-            #                  "X","Y","W","H","Area","Direction"' + "\n")
-            # f.write( header_text )
+            header_text = ('"YYYY-MM-DD HH:MM:SS ","Speed","UoM","MoE",'
+                           '"         Speed Photo Path               ","Area","Dir","Tag"' +"\n")
+            f.write( header_text )
             f.close()
             overlayLogger.info("Created new data csv file %s", data_file_path)
         filecontents = data_to_append + "\n"
@@ -1621,7 +1631,45 @@ class FoVDrawer(object):
                 f.truncate()
         
                   
- 
+def _start(WebcamTries):
+    if webcam:
+        WebcamTries += 1
+        overlayLogger.info("Initializing USB Web Camera Try .. %i",
+                        WebcamTries)
+        # Start video stream on a processor Thread for faster speed
+        if readFromFile:
+            vs = WebcamVideoStream(CAM_SRC= cfg.source_file_name,isFile=readFromFile,isLoop=cfg.file_loop)#.start()
+        else:
+            vs = WebcamVideoStream(saveStream=saveToFile,
+                                    CAM_SRC = cfg.WEBCAM_SRC,
+                                    CAM_WIDTH = cfg.WEBCAM_WIDTH,
+                                    CAM_HEIGHT = cfg.WEBCAM_HEIGHT)
+            
+        if vs.grabbed:
+            vs.start()
+        else:
+            WebcamTries=WebCamTryMax+1
+        if WebcamTries > WebCamTryMax:
+            overlayLogger.error("USB Web Cam Not Connecting to WEBCAM_SRC %i",
+                            cfg.WEBCAM_SRC)
+            overlayLogger.error("Check Camera is Plugged In and Working")
+            overlayLogger.error("on Specified SRC")
+            overlayLogger.error("and Not Used(busy) by Another Process.")
+            overlayLogger.error("%s %s Exiting Due to Error",
+                            progName, progVer)
+            vs.stop()
+            sys.exit(1)
+        time.sleep(4.0)  # Allow WebCam to initialize
+        overlayLogger.info("FPS %2f",vs.fps)
+    else:
+        overlayLogger.info("Initializing Pi Camera ....")
+        # Start a pi-camera video stream thread
+        vs = PiVideoStream().start()
+        vs.camera.rotation = cfg.CAMERA_ROTATION
+        vs.camera.hflip = cfg.CAMERA_HFLIP
+        vs.camera.vflip = cfg.CAMERA_VFLIP
+        time.sleep(2.0)  # Allow PiCamera to initialize
+
     
    
 #------------------------------------------------------------------------------------------
@@ -1640,7 +1688,9 @@ if __name__ == '__main__':
     try:
         WebcamTries = 0
         while True:
+            #_start(WebcamTries)
             # Start Web Cam stream (Note USB webcam must be plugged in)
+
             if webcam:
                 WebcamTries += 1
                 overlayLogger.info("Initializing USB Web Camera Try .. %i",
@@ -1684,6 +1734,7 @@ if __name__ == '__main__':
             test_img = vs.read()
             if test_img is None:
                 vs.stop()
+                #continue
                 raise ValueError( 'No frame found')
             img_height, img_width, _ = test_img[0].shape
             # Set width of trigger point image to save
@@ -1728,7 +1779,10 @@ if __name__ == '__main__':
 
             init_settings()  # Show variable settings
             rect=(x_left,x_right,y_upper,y_lower)
-            speedCam=SpeedTrack(readFromFile,rect,image_path)
+            ret=SpeedTrack(readFromFile,rect,image_path)
+            if ret==-1:
+                WebcamTries=0
+                overlayLogger.info("Camera restarting")
            
     except KeyboardInterrupt:
         vs.stop()
