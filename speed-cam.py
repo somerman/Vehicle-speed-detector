@@ -291,6 +291,7 @@ class WebcamVideoStream:
         self.src = CAM_SRC
         self.cam_stream = cv2.VideoCapture(self.src)
         self.stream_start_time= time.time()
+        self.frame_count=0
         
         if not isFile:
             self.cam_stream.set(3, CAM_WIDTH)
@@ -344,7 +345,8 @@ class WebcamVideoStream:
                 self.q.put((self.frame,(self.stream_start_time+(self.cam_stream.get(cv2.CAP_PROP_POS_MSEC)/1000))))# convert to seconds for compatibility
                 if self.saveStream:
                     self._write(self.frame)
-                frame_count=self.get_latest_fps(frame_count)
+                #frame_count=self.get_latest_fps(frame_count)
+                fps=self.get_latest_fps()
                 
         self.cam_stream.release()    #release resources
 
@@ -403,20 +405,31 @@ class WebcamVideoStream:
         overlayLogger.info("Estimated frames per second : %.2f period :%.2f mS",fps,period)
         return fps
       
-    def get_latest_fps(self, frame_count):
+    def get_latest_fps(self):
+        """Calculate fps for skip delay"""
+    #def get_latest_fps(self, frame_count):
         """ Calculate and display frames per second processing """
         #fps=0
-        if frame_count >= 300:
+        
+        if self.frame_count >= 30:
             duration = float(time.time() - self.fps_start_time)
-            self.fps = float(frame_count / duration)
+            if self.isFile:
+                self.fps= self.cam_stream.get(cv2.CAP_PROP_FPS)
+            else:
+               self.fps = float(self.frame_count / duration)
             if cfg.log_fps ==True:
-                overlayLogger.info("Reading at %.2f fps over last %i frames", self.fps, frame_count)
+                if self.isFile:
+                    overlayLogger.info("File reports %.2f fps", self.fps)
+                else:    
+                    overlayLogger.info("Reading at %.2f fps over last %i frames", self.fps, self.frame_count)
 
-            frame_count = 0
+            self.frame_count = 0
             self.fps_start_time = time.time()# reset time for next count
+
         else:
-            frame_count += 1
-        return frame_count
+            self.frame_count += 1
+        return self.fps
+    #return frame_count
     
     
     
@@ -674,10 +687,10 @@ class SpeedTrack(object):
         self.speed_db=None
         self.vehicles=[] # to hold a list of vehicles being tracked
         self.skip_frames=0# used to prevent dual tracking
-        self.x_left=rect[0]
-        self.x_right=rect[1]
-        self.y_upper=rect[2]
-        self.y_lower=rect[3]
+        self.FoV_x_left=rect[0]# the coordinates of the field of view mask
+        self.FoV_x_right=rect[1]
+        self.FoV_y_upper=rect[2]
+        self.FoV_y_lower=rect[3]
 
         
         self.kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -700,10 +713,10 @@ class SpeedTrack(object):
         rd=FoVDrawer("jeff")
         mask_rect=rd.load_mask()
         if mask_rect is not None:
-            self.x_left=mask_rect[0]
-            self.x_right= mask_rect[0]+mask_rect[2]
-            self.y_upper = mask_rect[1]
-            self.y_lower=mask_rect[1]+mask_rect[3]
+            self.FoV_x_left=mask_rect[0]
+            self.FoV_x_right= mask_rect[0]+mask_rect[2]
+            self.FoV_y_upper = mask_rect[1]
+            self.FoV_y_lower=mask_rect[1]+mask_rect[3]
                 
         # Warn user of performance hit if webcam image flipped
         if (webcam and webcam_flipped):
@@ -721,10 +734,10 @@ class SpeedTrack(object):
         grayimage1=self.get_init_image()
         
         still_scanning = True
-        if image_sign_on:
-            image_sign_bg = np.zeros((image_sign_resize[0], image_sign_resize[1], 4))
-            image_sign_view = cv2.resize(image_sign_bg, (image_sign_resize))
-            image_sign_view_time = time.time()
+        #if image_sign_on:
+            #image_sign_bg = np.zeros((image_sign_resize[0], image_sign_resize[1], 4))
+            #image_sign_view = cv2.resize(image_sign_bg, (image_sign_resize))
+            #image_sign_view_time = time.time()
         veh=None
         
         while still_scanning:  # process camera thread images and calculate speed
@@ -789,7 +802,7 @@ class SpeedTrack(object):
                                                     if veh.active:
                                                         if dir=="L2R":
                                                             x=x+w
-                                                            if x>=self.x_right-self.x_left:# the width of the cropped area
+                                                            if x>=self.FoV_x_right-self.FoV_x_left:# the width of the cropped area
                                                                 continue #hit the end so don't add
                                                         else:
                                                             if x<=0:# assume the start of cropped area x is 0
@@ -817,16 +830,16 @@ class SpeedTrack(object):
                                     # show small circle at contour xy if required
                                     if SHOW_CIRCLE:
                                         cv2.circle(image2,
-                                                (int(veh.cur_track_x + self.x_left * cfg.window_bigger),
-                                                int(veh.cur_track_y + self.y_upper * cfg.window_bigger)),
+                                                (int(veh.cur_track_x + self.FoV_x_left * cfg.window_bigger),
+                                                int(veh.cur_track_y + self.FoV_y_upper * cfg.window_bigger)),
                                                 CIRCLE_SIZE, colours.cvGreen, LINE_THICKNESS)
                                     if SHOW_RECTANGLE:
                                         # otherwise a rectangle around most recent contour
                                         cv2.rectangle(image2,
-                                                    (int(self.x_left + veh.cur_track_x),
-                                                    int(self.y_upper + veh.cur_track_y)),
-                                                    (int(self.x_left + veh.cur_track_x + veh.track_w),
-                                                    int(self.y_upper + veh.cur_track_y + veh.track_h)),
+                                                    (int(self.FoV_x_left + veh.cur_track_x),
+                                                    int(self.FoV_y_upper + veh.cur_track_y)),
+                                                    (int(self.FoV_x_left + veh.cur_track_x + veh.track_w),
+                                                    int(self.FoV_y_upper + veh.cur_track_y + veh.track_h)),
                                                     colours.cvRed, LINE_THICKNESS)
                         if len(orphan_contours) >0:#new vehicle?
                                     self.vehicles.append(Vehicle(x,y,w,h,centroid,None,found_area,frame))#
@@ -845,8 +858,9 @@ class SpeedTrack(object):
                     if cfg.show_thresh_on:
                         cv2.imshow('Threshold', differenceimage)
                     if cfg.show_crop_on:
-                        image_crop = image2[self.y_upper:self.y_lower, self.x_left:self.x_right]
+                        image_crop = image2[self.FoV_y_upper:self.FoV_y_lower, self.FoV_x_left:self.FoV_x_right]
                         cv2.imshow('Crop Area', image_crop)
+                    """
                     if image_sign_on:
                         if time.time() - image_sign_view_time > image_sign_timeout:
                             # Cleanup the image_sign_view
@@ -856,6 +870,7 @@ class SpeedTrack(object):
                         cv2.namedWindow(cv2_window_speed_sign, cv2.WINDOW_NORMAL)
                         cv2.cv2.setWindowProperty(cv2_window_speed_sign, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
                         cv2.imshow(cv2_window_speed_sign, image_sign_view)
+                    """
                 else:
                     self.vehicles.clear()# no contours so no vehicles
             else:
@@ -879,10 +894,10 @@ class SpeedTrack(object):
                 window.close()
                 if event== 'Submit':
                     rd.save_mask((x1,y1,w1,h1))
-                    self.x_left = x1
-                    self.x_right=x1+w1
-                    self.y_lower =y1+h1
-                    self.y_upper=y1
+                    self.FoV_x_left = x1
+                    self.FoV_x_right=x1+w1
+                    self.FoV_y_lower =y1+h1
+                    self.FoV_y_upper=y1
                     grayimage1=self.get_init_image()
                 
                
@@ -899,14 +914,14 @@ class SpeedTrack(object):
         raise KeyboardInterrupt()
     
     def speed_image_add_lines(self,image, color):
-        cv2.line(image, (self.x_left, self.y_upper),
-                (self.x_right, self.y_upper), color, 1)
-        cv2.line(image, (self.x_left, self.y_lower),
-                (self.x_right, self.y_lower), color, 1)
-        cv2.line(image, (self.x_left, self.y_upper),
-                (self.x_left, self.y_lower), color, 1)
-        cv2.line(image, (self.x_right, self.y_upper),
-                (self.x_right, self.y_lower), color, 1)
+        cv2.line(image, (self.FoV_x_left, self.FoV_y_upper),
+                (self.FoV_x_right, self.FoV_y_upper), color, 1)
+        cv2.line(image, (self.FoV_x_left, self.FoV_y_lower),
+                (self.FoV_x_right, self.FoV_y_lower), color, 1)
+        cv2.line(image, (self.FoV_x_left, self.FoV_y_upper),
+                (self.FoV_x_left, self.FoV_y_lower), color, 1)
+        cv2.line(image, (self.FoV_x_right, self.FoV_y_upper),
+                (self.FoV_x_right, self.FoV_y_lower), color, 1)
         return image
 
     def create_cal_lines(self,cal_image):
@@ -978,7 +993,7 @@ class SpeedTrack(object):
         
             # initialise crop image to motion tracking area only
             #cv2.imshow("diff",col_processed_img) #debug
-            image_crop = image2[self.y_upper:self.y_lower, self.x_left:self.x_right]
+            image_crop = image2[self.FoV_y_upper:self.FoV_y_lower, self.FoV_x_left:self.FoV_x_right]
             #cv2.imshow("Cropped", image_crop)#debug
         except Exception as ex:
             vs.stop()
@@ -1038,7 +1053,7 @@ class SpeedTrack(object):
         #for large vehicles that may fill the crop area
         #this is the main limitation on detection accuracy, since fast vehicles
         # don't get picked up
-        if (x > 1 and (x + w) < (self.x_left+1 )):
+        if (x > 1 and (x + w) < (self.FoV_x_left+1 )):
             return True
         return False    
     """    
@@ -1128,6 +1143,7 @@ class SpeedTrack(object):
              #                       abs(self.vehicle_end_pos_x - self.vehicle_prev_pos_x) <= x_diff_max):
                 cur_track_dist = track_diff
                 #cur_track_dist = abs(self.vehicle_end_pos_x - self.vehicle_prev_pos_x)
+                whole_vehicle=True
                 if veh.cur_track_time==prev_start_time:
                     return False
                 try:
@@ -1135,10 +1151,14 @@ class SpeedTrack(object):
                         cur_ave_speed = float((abs(cur_track_dist /float(abs(veh.cur_track_time - prev_start_time)))) * rc.speed_conv_L2R)
                         cal_obj_px = cfg.cal_obj_px_L2R
                         cal_obj_mm = cfg.cal_obj_mm_L2R
+                        if veh.track_list[-1].cur_track_x==0:# there is still vehicle in view at the boundary
+                            whole_vehicle=False
                     elif  veh.track_list[-1].direction=="R2L":
                         cur_ave_speed = float((abs(cur_track_dist /float(abs(veh.cur_track_time - prev_start_time)))) * rc.speed_conv_R2L)
                         cal_obj_px = cfg.cal_obj_px_R2L
                         cal_obj_mm = cfg.cal_obj_mm_R2L
+                        if (veh.track_list[-1].cur_track_x + veh.track_list[-1].track_w)==(self.FoV_x_right-self.FoV_x_left):# the width of the FoV
+                            whole_vehicle=False                   
                     else:
                         return False
                 except Exception as e:
@@ -1149,7 +1169,9 @@ class SpeedTrack(object):
                 prev_start_time = veh.cur_track_time
                 #self.event_timer = frame[1]
                             
-                if track_count > cfg.track_counter:
+                if track_count > cfg.track_counter and whole_vehicle==True:# ideally, we would like the whole vehicle to be in frame
+                    #to complete the measurement and give an accurate size.
+
 
                     tot_track_dist = abs(veh.cur_track_x - self.vehicle_start_pos_x)
                     tot_track_time = abs(veh.cur_track_time-veh.track_list[0].track_time)
@@ -1162,6 +1184,8 @@ class SpeedTrack(object):
                         veh.StdDev= pstdev(veh.speed_list)
                         veh.MoE=(veh.StdDev/math.sqrt(len(veh.speed_list)))*1.96 # mph, z=1.96 for 95% confidence
                         veh.FinalSpeed=ave_speed
+                        veh.track_w=veh.track_list[-1].track_w #make the vehicle size the last size measurements detected
+                        veh.track_h=veh.track_list[-1].track_h
                     # Track length exceeded so take process speed photo
                         if cfg.max_speed_count > ave_speed > cfg.max_speed_over :
                         #if cfg.max_speed_count > ave_speed > cfg.max_speed_over or cfg.calibrate:
@@ -1323,8 +1347,8 @@ class SpeedTrack(object):
                                 veh.track_list[-1].direction, overlay_name,
                                 veh.cur_track_x, veh.cur_track_y,
                                 veh.track_w, veh.track_h, m_area,
-                                self.x_left, self.x_right,
-                                self.y_upper, self.y_lower,
+                                self.FoV_x_left, self.FoV_x_right,
+                                self.FoV_y_upper, self.FoV_y_lower,
                                 cfg.max_speed_over,
                                 cfg.MIN_AREA, cfg.track_counter,
                                 cal_obj_px, cal_obj_mm, '', cfg.CAM_LOCATION)
@@ -1401,14 +1425,14 @@ class SpeedTrack(object):
             # show centre of motion if required
             if SHOW_CIRCLE:
                 cv2.circle(prev_image,
-                        (veh.cur_track_x + self.x_left, veh.cur_track_y + y_upper),
+                        (veh.cur_track_x + self.FoV_x_left, veh.cur_track_y + y_upper),
                         CIRCLE_SIZE,
                         colours.cvGreen, LINE_THICKNESS)
             if SHOW_RECTANGLE:
                 cv2.rectangle(prev_image,
-                            (int(veh.cur_track_x + self.x_left),
+                            (int(veh.cur_track_x + self.FoV_x_left),
                             int(veh.cur_track_y + y_upper)),
-                            (int(veh.cur_track_x + self.x_left + veh.track_w),
+                            (int(veh.cur_track_x + self.FoV_x_left + veh.track_w),
                             int(veh.cur_track_y + y_upper + veh.track_h)),
                             colours.cvGreen, LINE_THICKNESS)
         big_image = cv2.resize(prev_image,
@@ -1505,7 +1529,7 @@ class SpeedTrack(object):
         while not image_ok:
             # crop image to motion tracking area only
             try:
-                image_crop = image[self.y_upper:self.y_lower, self.x_left:self.x_right]
+                image_crop = image[self.FoV_y_upper:self.FoV_y_lower, self.FoV_x_left:self.FoV_x_right]
                 image_ok = True
             except (ValueError, TypeError):#probably camera has disconnected
                 overlayLogger.error("image Stream Image is Not Complete. Cannot Crop. Retrying...")
@@ -1683,7 +1707,7 @@ if __name__ == '__main__':
     y_upper=cfg.y_upper
     #rd=RectangleDrawer()
     #pc=PolyCrop(rc.road)
-    sfu=speed_file_utils.SpeedFileUtils()
+    sfu=speed_file_utils.SpeedFileUtils(cfg)
     WebCamTryMax=3
     try:
         WebcamTries = 0

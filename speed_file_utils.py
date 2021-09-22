@@ -3,13 +3,18 @@ import os
 import datetime
 import logging
 import glob
-import defaults
+
 import shutil
 from config import *
 
 class SpeedFileUtils(object):
-    def __init__(self):
-      	pass
+    def __init__(self, cfg :Config):
+       self.spaceTimerHrs=cfg.spaceTimerHrs
+       self.spaceFreeMB=cfg.spaceFreeMB
+       self.spaceMediaDir=cfg.spaceMediaDir
+       self.spaceFileExt=cfg.spaceFileExt
+        
+       
     
     def _subDirLatest(self,directory):
         """ Scan for directories and return most recent """
@@ -197,17 +202,17 @@ class SpeedFileUtils(object):
 
     def freeDiskSpaceCheck(self,lastSpaceCheck):
         """ Free disk space by deleting some older files """
-        if spaceTimerHrs > 0:   # Check if disk free space timer hours is enabled
+        if self.spaceTimerHrs > 0:   # Check if disk free space timer hours is enabled
             # See if it is time to do disk clean-up check
-            if (datetime.datetime.now() - lastSpaceCheck).total_seconds() > spaceTimerHrs * 3600:
+            if (datetime.datetime.now() - lastSpaceCheck).total_seconds() > self.spaceTimerHrs * 3600:
                 lastSpaceCheck = datetime.datetime.now()
                 # Set freeSpaceMB to reasonable value if too low
-                if spaceFreeMB < 100:
+                if self.spaceFreeMB < 100:
                     diskFreeMB = 100
                 else:
-                    diskFreeMB = spaceFreeMB
-                logging.info('spaceTimerHrs=%i  diskFreeMB=%i  spaceMediaDir=  %s spaceFileExt=%s',
-                            spaceTimerHrs, diskFreeMB, spaceMediaDir, spaceFileExt)
-                self._freeSpaceUpTo(diskFreeMB, spaceMediaDir, spaceFileExt)
+                    diskFreeMB = self.spaceFreeMB
+                logging.info('spaceTimerHrs=%i  diskFreeMB=%i  self.spaceMediaDir=  %s self.spaceFileExt=%s',
+                            self.spaceTimerHrs, diskFreeMB, self.spaceMediaDir, self.spaceFileExt)
+                self._freeSpaceUpTo(diskFreeMB, self.spaceMediaDir, self.spaceFileExt)
         return lastSpaceCheck
 

@@ -9,7 +9,7 @@ import os
 import logging
 import shutil
 import sys
-import defaults
+
 import glob
 
 #TODO: rationalise python variable styles per pep 8
@@ -285,13 +285,7 @@ class Config:
         self.imageSubDirMaxHours = FileManager.getfloat('imageSubDirMaxHours',0)  # 0=off or specify MaxHours - Creates New dated sub-folder if MaxHours exceeded
 
 
-        for key, val in defaults.default_settings.items():
-            try:
-                val=self.parser['Settings'][key]
-                exec(key +'=val')
-            except KeyError:
-                print('WARN  : config.ini Variable Not Found. Setting ' + key + ' = ' + str(val))
-                exec(key + '=val')
+        
 
     def parse_int_tuple(self,input):
       return tuple(int(k.strip()) for k in input[1:-1].split(','))
