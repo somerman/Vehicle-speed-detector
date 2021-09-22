@@ -210,7 +210,9 @@ class Config:
         self.log_fps =Logging.getboolean('log_fps', False)    # True= Show average frame count every 1000 loops False= Off
         self.log_data_to_CSV = Logging.getboolean('log_data_to_csv', True) # True= Save log data as CSV comma separated values  False= Off
         self.log_data_to_DB = Logging.getboolean('log_data_to_db', False) # True= Save log data to SQL database
-        self.loggingToFile = Logging.getboolean('loggingToFile', False)  # True= Send logging to file False= No Logging to File
+        self.log_to_file = Logging.getboolean('log_to_file', False)  # True= Send logging to file False= No Logging to File
+        self.log_to_console = Logging.getboolean('log_to_console', False)  # True= Send logging to file False= No Logging to File
+
         #self.logFilePath = Logging.get('logFilePath','speed-cam.log')  # Location of log file when loggingToFile=True
         self.maxLogSize= Logging.getint('maxLogSize',1E6)
         self.logBackups=Logging.getint('logBackups',0)

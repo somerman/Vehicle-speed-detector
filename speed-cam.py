@@ -110,16 +110,21 @@ fileHandler.setFormatter(fileFormatter)
 overlayLogger=logging.getLogger(cfg.overlayName +'Logger')
 overlayLogger.propagate = 0
 
-if cfg.loggingToFile:# add console and file handling
+
+if cfg.log_to_console:# add console console
+    overlayLogger.addHandler(consoleHandler)
+    if cfg.verbose: #just console and all messages
+        consoleHandler.setLevel(logging.DEBUG)
+    else: # just console but only critical messages
+        consoleHandler.setLevel(logging.INFO)
+        
+if cfg.log_to_file:# add  file logging
     overlayLogger.addHandler(fileHandler)
-    if cfg.verbose:
-        overlayLogger.addHandler(consoleHandler)
-elif cfg.verbose: #just console and all messages
-    consoleHandler.setLevel(logging.DEBUG)
-    overlayLogger.addHandler(consoleHandler)
-else: # just console but only critical messages
-    consoleHandler.setLevel(logging.CRITICAL)
-    overlayLogger.addHandler(consoleHandler)
+    if cfg.verbose: #just console and all messages
+        fileHandler.setLevel(logging.DEBUG)
+    else: # just console but only critical messages
+        fileHandler.setLevel(logging.INFO)
+    
  
 # Do a quick check to see if the sqlite database directory path exists
 db_dir_path = os.path.join(baseDir, cfg.DB_DIR)
@@ -407,9 +412,6 @@ class WebcamVideoStream:
       
     def get_latest_fps(self):
         """Calculate fps for skip delay"""
-    #def get_latest_fps(self, frame_count):
-        """ Calculate and display frames per second processing """
-        #fps=0
         
         if self.frame_count >= 30:
             duration = float(time.time() - self.fps_start_time)
@@ -419,9 +421,9 @@ class WebcamVideoStream:
                self.fps = float(self.frame_count / duration)
             if cfg.log_fps ==True:
                 if self.isFile:
-                    overlayLogger.info("File reports %.2f fps", self.fps)
+                    overlayLogger.debug("File reports %.2f fps", self.fps)
                 else:    
-                    overlayLogger.info("Reading at %.2f fps over last %i frames", self.fps, self.frame_count)
+                    overlayLogger.debug("Reading at %.2f fps over last %i frames", self.fps, self.frame_count)
 
             self.frame_count = 0
             self.fps_start_time = time.time()# reset time for next count
@@ -581,7 +583,7 @@ def logging_notifications():
         appLogger.info("Overlay Disabled per overlayEnable=%s", cfg.overlayEnable)
 
     if cfg.verbose:
-        if cfg.loggingToFile:
+        if cfg.log_to_file:
             print("Logging to File %s and Console" % overlay_log_path)
            #print("Logging to File %s and Console" % cfg.logFilePath)
         else:
@@ -1200,16 +1202,14 @@ class SpeedTrack(object):
                                         veh.track_list[-1].track_h*veh.track_list[-1].track_w,
                                         veh.track_list[-1].direction)
                     
-                            overlayLogger.info("Tracking complete- %s Ave %.1f %s,StdDev %.2f, Tracked %i px in %.3f sec, Calib %ipx %imm  ",
+                            overlayLogger.info("Tracking complete- %s Ave %.1f %s,StdDev %.2f, Tracked %i px in %.3f s",
                                     veh.track_list[-1].direction,
                                     veh.FinalSpeed, rc.speed_units,
                                     veh.MoE,
                                     tot_track_dist,
-                                    tot_track_time,
-                                    cal_obj_px,
-                                    cal_obj_mm
+                                    tot_track_time
                                     )    
-                            print( veh.speed_list)
+                            overlayLogger.debug(veh.speed_list)
                             (fullfilename,partfilename)=self.save_speed_image(image2,ave_speed,veh,frame[1])
                             self.write_speed_record(veh, partfilename,ave_speed, cal_obj_mm, cal_obj_px,frame[1])
                             #self.write_speed_record(veh, fullfilename,ave_speed, cal_obj_mm, cal_obj_px,frame[1])
