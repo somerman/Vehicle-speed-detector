@@ -133,7 +133,7 @@ if not os.path.exists(db_dir_path):  # Check if database directory exists
 db_path = os.path.join(db_dir_path, cfg.DB_NAME)   # Create path to db file
 
 global image_path 
-
+webcam=cfg.WEBCAM    
 # import a single variable from the search_config.py file
 # This is done to auto create a media/search directory
 """
@@ -144,8 +144,8 @@ except ImportError:
     appLogger.warn("Problem importing search_dest_path variable")
     appLogger.info("Setting default value search_dest_path = %s", search_dest_path)
 """
+
       
-    
 # import the necessary packages
 # -----------------------------
 try:   # Check to see if opencv is installed
@@ -223,34 +223,56 @@ class SpeedCam(object):
 class PiVideoStream:
     def __init__(self, resolution=(camera_width, camera_height),
                  framerate=cfg.CAMERA_FRAMERATE, rotation=0,
-                 hflip=cfg.CAMERA_HFLIP, vflip=cfg.CAMERA_VFLIP):
-        """ initialize the camera and stream """
-        try:
-            self.camera = PiCamera()
-        except:
-            overlayLogger.error("PiCamera Already in Use by Another Process")
-            overlayLogger.error("%s %s Exiting Due to Error", progName, progVer)
-            sys.exit(1)
-        self.camera.resolution = resolution
-        self.camera.rotation = rotation
-        self.camera.framerate = framerate
-        self.camera.hflip = hflip
-        self.camera.vflip = vflip
-        self.rawCapture = PiRGBArray(self.camera, size=resolution)
-        self.stream = self.camera.capture_continuous(self.rawCapture,
-                                                     format="bgr",
-                                                     use_video_port=True)
-
-        """
+                 hflip=cfg.CAMERA_HFLIP, vflip=cfg.CAMERA_VFLIP,
+                 saveStream=False,isFile=False, isLoop =True):
+       
+        self.isFile=isFile
+        if not self.isFile:
+            """ initialize the camera and stream """
+            try:
+                self.camera = PiCamera()
+            except:
+                overlayLogger.error("PiCamera Already in Use by Another Process")
+                overlayLogger.error("%s %s Exiting Due to Error", progName, progVer)
+                sys.exit(1)
+            self.camera.resolution = resolution
+            self.camera.rotation = rotation
+            self.camera.framerate = framerate
+            self.camera.hflip = hflip
+            self.camera.vflip = vflip
+            self.camera.framerate=20
+            self.camera.iso=100
+            self.camera.exposure_mode='antishake'# change this for your camera situation
+            # options: off,auto,night,nightpreview,backlight,spotlight,sports,snow,beach,very long,fixedfps,antishake
+            self.fps=self.camera.framerate
+            self.rawCapture = PiRGBArray(self.camera, size=resolution)
+            self.stream = self.camera.capture_continuous(self.rawCapture,
+                                                        format="bgr",
+                                                        use_video_port=True)
+        else:
+            self.fps= self.cam_stream.get(cv2.CAP_PROP_FPS)
+            self.grabbed=True# fake this
+            self.stream_start_time=os.path.getctime(self.src)
+            self.isLoop=isLoop
+            """
         initialize the frame and the variable used to indicate
         if the thread should be stopped
         """
         self.thread = None
         self.frame = None
         self.stopped = False
+        self.frame_timestamp=0
+        self.frame_count=0
+        
+        if saveStream:
+            savefilename= cfg.overlayName+"_calibrate.mp4"
+            fourccCode = cv2.VideoWriter_fourcc(*'mp4v')# for avi use XDIV codec
+            self.vw=self._open_writer(fourcc=fourccCode,strfilename=savefilename)
 
     def start(self):
         """ start the thread to read frames from the video stream """
+        self.q=queue.Queue(48)# create a queue buffer to smooth out processing blips
+
         self.thread = Thread(target=self.update, args=())
         self.thread.daemon = True
         self.thread.start()
@@ -258,10 +280,14 @@ class PiVideoStream:
 
     def update(self):
         """ keep looping infinitely until the thread is stopped """
+        self.fps_start_time=time.time()
         for f in self.stream:
             # grab the frame from the stream and clear the stream in
             # preparation for the next frame
             self.frame = f.array
+            self.frame_timestamp=f.camera.timestamp/1E6# convert to seconds for compatibility
+            self.q.put((self.frame,self.frame_timestamp))
+  
             self.rawCapture.truncate(0)
 
             # if the thread indicator variable is set, stop the thread
@@ -271,16 +297,47 @@ class PiVideoStream:
                 self.rawCapture.close()
                 self.camera.close()
                 return
+            fps=self.get_latest_fps()
+            
 
     def read(self):
         """ return the frame most recently read """
-        return self.frame
+        #buffering the frame reads in the queue allows a smoother replay if resources are limited.
+        frame= None
+        if not self.q.empty():
+            #print("Queue", self.q.qsize())
+            frame=self.q.get()
+        return frame
+        #return self.frame,self.frame_timestamp
 
     def stop(self):
         """ indicate that the thread should be stopped """
         self.stopped = True
         if self.thread is not None:
             self.thread.join()
+
+    def get_latest_fps(self):
+        """Calculate fps for skip delay"""
+        
+        if self.frame_count >= 30:
+            duration = float(time.time() - self.fps_start_time)
+            if self.isFile:
+                self.fps= self.cam_stream.get(cv2.CAP_PROP_FPS)
+            else:
+               self.fps = float(self.frame_count / duration)
+            if cfg.log_fps ==True:
+                if self.isFile:
+                    overlayLogger.debug("File reports %.2f fps", self.fps)
+                else:    
+                    overlayLogger.debug("Reading at %.2f fps over last %i frames", self.fps, self.frame_count)
+
+            self.frame_count = 0
+            self.fps_start_time = time.time()# reset time for next count
+
+        else:
+            self.frame_count += 1
+        return self.fps
+
 
 #------------------------------------------------------------------------------
 class WebcamVideoStream:
@@ -728,7 +785,8 @@ class SpeedTrack(object):
             overlayLogger.warn("Set config.py WEBCAM_HFLIP and WEBCAM_VFLIP to False")
         mainwin='Movement (q Quits)'
         cv2.namedWindow(mainwin)# create a window to hold the main image
-        cv2.moveWindow(mainwin, 1900,-900)
+        #(x,y,w,h)=cv2.getWindowImageRect(mainwin)
+        cv2.moveWindow(mainwin, 150,150)
         #self.contourwin="Contours"
         #cv2.namedWindow(self.contourwin)
         #cv2.moveWindow(self.contourwin, xwin-400,ywin)
@@ -747,7 +805,7 @@ class SpeedTrack(object):
                 
             frame=vs.read()# Read frame data from video steam thread instance
             if frame is not None:
-                image2 = frame[0] # extract image from tuple
+                image2 = frame[0].copy() # extract image from tuple
                 
                 #process the frame for contours within the cropped area
                 if self.skip_frames == 0:    
@@ -1202,12 +1260,13 @@ class SpeedTrack(object):
                                         veh.track_list[-1].track_h*veh.track_list[-1].track_w,
                                         veh.track_list[-1].direction)
                     
-                            overlayLogger.info("Tracking complete- %s Ave %.1f %s,StdDev %.2f, Tracked %i px in %.3f s",
+                            overlayLogger.info("Tracking complete- %s Ave %.1f %s,StdDev %.2f, Tracked %i px in %.2f s,size,%i",
                                     veh.track_list[-1].direction,
                                     veh.FinalSpeed, rc.speed_units,
                                     veh.MoE,
                                     tot_track_dist,
-                                    tot_track_time
+                                    tot_track_time,
+                                    veh.track_w*veh.track_h
                                     )    
                             overlayLogger.debug(veh.speed_list)
                             (fullfilename,partfilename)=self.save_speed_image(image2,ave_speed,veh,frame[1])
@@ -1542,6 +1601,7 @@ class SpeedTrack(object):
 
         # Convert to gray scale, which is easier
         grayimage2 = cv2.cvtColor(image_crop, cv2.COLOR_BGR2GRAY)
+        #cv2.imshow('image2', image_crop)
         # Get differences between the two greyed images
         global differenceimage
         differenceimage = cv2.absdiff(grayimage1, grayimage2)
@@ -1747,7 +1807,8 @@ if __name__ == '__main__':
             else:
                 overlayLogger.info("Initializing Pi Camera ....")
                 # Start a pi-camera video stream thread
-                vs = PiVideoStream().start()
+                vs = PiVideoStream(saveStream=saveToFile)
+                vs.start()
                 vs.camera.rotation = cfg.CAMERA_ROTATION
                 vs.camera.hflip = cfg.CAMERA_HFLIP
                 vs.camera.vflip = cfg.CAMERA_VFLIP
