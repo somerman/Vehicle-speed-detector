@@ -22,3 +22,4 @@ overlays/webcam480.log
 overlays/webcam480.log.1
 src/appLogger.log
 src/__pycache__/speed-cam.cpython-36.pyc
+src/speed-cam.csv
