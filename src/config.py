@@ -11,6 +11,7 @@ import shutil
 import sys
 from pathlib import Path
 import glob
+import inspect
 
 #TODO: rationalise python variable styles per pep 8
 progVer = "1.00"
@@ -39,7 +40,7 @@ FONT_SCALE = 0.5              # Default= 0.5 OpenCV window text font size scalin
 
 # Sqlite3 Settings
 # ----------------
-DB_DIR   = "data"
+#DB_DIR   = "data"
 
 # matplotlib graph image settings -not used in this ver
 # -------------------------------
@@ -100,6 +101,8 @@ class Config:
         self.load_settings()# load the basic settings 
         self.check_overlay()# check to see if there is an overlay ini
         self.retrieve_settings()#read the config ini overwritten by overlayini settings (if any)
+        self._get_image_path()
+        self._get_data_path()
         
         
         
@@ -124,10 +127,15 @@ class Config:
         # Get information about this script including name, launch path, etc.   
         # This allows script to be renamed or relocated to another directory
         mypath = os.path.abspath(__file__)  # Find the full path of this python script
+        previous_frame = inspect.currentframe().f_back
+        mypath = os.path.abspath((inspect.getframeinfo(previous_frame.f_back)[2]))
         # get the path location only (excluding script name)
         self.baseDir = mypath[0:mypath.rfind("/")+1]
-        self.baseFileName = mypath[mypath.rfind("/")+1:mypath.rfind(".")]
-        self.progName = os.path.basename(__file__)
+        self.baseFileName = "speed-cam.py"
+        #self.baseFileName = mypath[mypath.rfind("/")+1:mypath.rfind(".")]
+        self.progName = "home_speed_detector"
+        #self.progName = os.path.basename(__file__)
+        pass
         
     def get_current_overlay(self,overlayName):
         self.overlayDir = os.path.join(self.baseDir, OVERLAYS_DIR)
@@ -186,7 +194,23 @@ class Config:
         else:
             self.overlayname='default'
 
-
+    def _get_image_path(self):
+        if not os.path.exists(self.image_path):# perhaps invalid full path
+            try:# to make it above the source directory
+                self.image_path = os.path.join(Path(self.baseDir).parents[0], self.image_path)# one up
+            except:
+                pass
+            os.makedirs(self.image_path)# make it in the base dir
+        
+    
+    def _get_data_path(self):
+        if not os.path.exists(self.db_path):# perhaps invalid full path
+            try:# to make it above the source directory
+                self.db_path = os.path.join(Path(self.baseDir).parents[0], self.db_path)# one up
+            except:
+                pass
+            os.makedirs(self.db_path)# make it in the base dir
+                
     def retrieve_settings(self):
         """Get all the settings from the config and overlay files"""
         Source=self.parser['Source']
@@ -280,7 +304,7 @@ class Config:
         self.imageRecentDir = Image.get('imageRecentDir',"media/recent")  # Default= "media/recent"  save recent files directory path
 
         Sqlite3= self.parser['Sqlite3']
-        self.DB_DIR   = Sqlite3.get('DB_DIR', "data")
+        self.db_path   = Sqlite3.get('DB_DIR', "data")
         self.DB_NAME  = Sqlite3.get('DB_NAME', "speed_cam.db")
         self.DB_TABLE = Sqlite3.get('DB_TABLE', "speed")
         FileManager=self.parser['Files']

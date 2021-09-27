@@ -129,7 +129,7 @@ if cfg.log_to_file:# add  file logging
     
  
 # Do a quick check to see if the sqlite database directory path exists
-db_dir_path = os.path.join(baseDir, cfg.DB_DIR)
+db_dir_path = os.path.join(baseDir, cfg.db_path)
 if not os.path.exists(db_dir_path):  # Check if database directory exists
     os.makedirs(db_dir_path)         # make directory if Not Found
 db_path = os.path.join(db_dir_path, cfg.DB_NAME)   # Create path to db file
@@ -517,7 +517,7 @@ def init_settings():
     appLogger.info("Application start")
         
     current_working_directory = os.getcwd()
-    html_path = "media/html"
+    #html_path = "media/html"
     image_path=os.path.join(cfg.image_path,cfg.overlayName)
     if not os.path.isdir(image_path):
         overlayLogger.info("Creating Image Storage Folder %s", image_path)
@@ -1610,7 +1610,7 @@ class SpeedTrack(object):
     
     def save_to_csv(self,data_to_append):
         """ Store date to a comma separated value file """
-        data_file_path = os.path.join(baseDir, DB_DIR, cfg.overlayName+".csv")
+        data_file_path = os.path.join(baseDir, cfg.db_path, cfg.overlayName+".csv")
         if not os.path.exists(data_file_path):
             open(data_file_path, 'w').close()
             f = open(data_file_path, 'a+')
