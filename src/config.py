@@ -9,7 +9,7 @@ import os
 import logging
 import shutil
 import sys
-
+from pathlib import Path
 import glob
 
 #TODO: rationalise python variable styles per pep 8
@@ -92,12 +92,15 @@ class Config:
    
 
     def __init__(self, baseDir,logger):
+        self.overlayPath=""
         self.baseDir=baseDir
         self.parser=None
         self.appLogger=logger
+        self.get_base_path()
         self.load_settings()# load the basic settings 
         self.check_overlay()# check to see if there is an overlay ini
         self.retrieve_settings()#read the config ini overwritten by overlayini settings (if any)
+        
         
         
         
@@ -127,22 +130,24 @@ class Config:
         self.progName = os.path.basename(__file__)
         
     def get_current_overlay(self,overlayName):
-        overlayDir = os.path.join(self.baseDir, OVERLAYS_DIR)
+        self.overlayDir = os.path.join(self.baseDir, OVERLAYS_DIR)
+        if not os.path.exists(self.overlayDir):# the same dir as base
+            self.overlayDir = os.path.join(Path(self.baseDir).parents[0], OVERLAYS_DIR)# one up
         # Check if there is a .ini at the end of overlayName variable
         if overlayName.endswith('.ini'):
             overlayName = overlayName[:-4]    # Remove .ini extension
-        overlayPath = os.path.join(overlayDir, overlayName + '.ini')
+        overlayPath = os.path.join(self.overlayDir, overlayName + '.ini')
 
-        self.appLogger.info("overlayEnabled - loading overlayName %s", overlayPath)
-        if not os.path.isdir(overlayDir):
-            self.appLogger.error("overlay Directory Not Found at %s", overlayDir)
+        self.appLogger.info("overlayEnabled - trying to load overlayName %s", overlayPath)
+        if not os.path.isdir(self.overlayDir):
+            self.appLogger.error("overlay Directory Not Found at %s", self.overlayDir)
             self.appLogger.warn("%s %s Exiting Due to Error", self.progName, progVer)
             sys.exit(1)
         elif not os.path.exists(overlayPath):
             self.appLogger.error("File Not Found overlayName %s", overlayPath)
             self.appLogger.info("Check Spelling of overlayName Value in %s", self.settingsFilePath)
             self.appLogger.info("------- Valid Names -------")
-            validPlugin = glob.glob(overlayDir + "/*ini")
+            validPlugin = glob.glob(self.overlayDir + "/*ini")
             validPlugin.sort()
             for entry in validPlugin:
                 overlayFile = os.path.basename(entry)
@@ -154,7 +159,7 @@ class Config:
             self.appLogger.warn("%s %s Exiting Due to Error", self.progName, progVer)
             sys.exit(1)
         else:
-            overlayCurrent = os.path.join(overlayDir, "current.ini")
+            overlayCurrent = os.path.join(self.overlayDir, "current.ini")
             try:    # Copy image file to recent folder
                 self.appLogger.info("Copy %s to %s", overlayPath, overlayCurrent)
                 shutil.copy(overlayPath, overlayCurrent)
@@ -166,9 +171,9 @@ class Config:
                 sys.exit(1)
             self.appLogger.info("Imported Overlay %s", overlayPath)
             # add overlay directory to program PATH
-            sys.path.insert(0, overlayDir)
+            sys.path.insert(0, self.overlayDir)
             self.overlayPath=overlayPath
-            return overlayCurrent, overlayDir
+            return overlayCurrent, self.overlayDir
 
     def check_overlay(self):
         """Check to see if an overlay is specified in the config.ini"""

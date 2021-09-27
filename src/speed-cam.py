@@ -54,6 +54,7 @@ import logging.handlers
 import sqlite3
 from threading import Thread
 import subprocess
+
 import numpy as np
 from array import array
 import json
@@ -100,8 +101,9 @@ consoleHandler = logging.StreamHandler()
 consoleHandler.setLevel(logging.DEBUG)
 consoleHandler.setFormatter(consoleFormatter)
 # set up the overlay logging file handler with limitation on log size option
-overlay_log_path=os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                                 OVERLAYS_DIR,cfg.overlayName+'.log')
+overlay_log_path=os.path.join(cfg.overlayDir,cfg.overlayName+'.log')
+#overlay_log_path=os.path.join(os.path.dirname(os.path.abspath(__file__)),
+ #                                                OVERLAYS_DIR,cfg.overlayName+'.log')
 fileHandler=logging.handlers.RotatingFileHandler(overlay_log_path,
                                                  maxBytes=cfg.maxLogSize,
                                                  backupCount=cfg.logBackups)
@@ -152,6 +154,7 @@ try:   # Check to see if opencv is installed
     import cv2
 except ImportError:
     appLogger.error("Could Not import cv2 library")
+    print("Could Not import cv2 library")
     if sys.version_info > (2, 9):
         appLogger.error("python3 failed to import cv2")
         appLogger.error("Try installing opencv for python3")
