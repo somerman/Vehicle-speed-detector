@@ -1,10 +1,10 @@
 # -*- mode: python -*-
 from pathlib import Path
 import os
-root= os.path.join(str(Path.home()),'home_speed_detector')
-#dict_tree=Tree(root+'/AROW_V2/AROWSendV2/AROWSend/src/web',prefix='web/')
-a = Analysis([root+'speed-cam.py'],
-             pathex=[root+'/PyInstallers/Deb64/home_speed_detector'],
+root= os.path.join(str(Path.home()),'Shared/home_speed_detector')
+a = Analysis([root+'/src/speed-cam.py'],
+             pathex=[root+'/home_speed_detector_Installers/Deb64'],
+	     datas=[(root+'/src/logging.conf','.')],
              hiddenimports=[],
              hookspath=None,
              runtime_hooks=None)
@@ -14,7 +14,6 @@ exe = EXE(pyz,
           a.binaries,
 	  a.zipfiles,
           a.datas,
-	  dict_tree,
 	  name='VehicleSpeedDetector',
           debug=False,
           strip=None,
