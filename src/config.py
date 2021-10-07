@@ -109,13 +109,14 @@ class Config:
         
     
     def load_settings(self):
-        self.settingsFilePath = os.path.join(self.baseDir, "config.ini")
+        self.settingsFilePath = os.path.join(self.overlayDir, "config.ini")
         if os.path.exists(self.settingsFilePath):
         # Read Configuration variables from config.ini file
             try:
                 from configparser import ConfigParser
                 self.parser=ConfigParser(inline_comment_prefixes="#",converters={'tuple':self.parse_int_tuple})
-                self.parser.read(['config.ini'])
+                self.parser.read([self.settingsFilePath])
+                #self.parser.read(['config.ini'])
             except ImportError:
                 print('WARN  : Import of ConfigParser failed')
             except FileNotFoundError:
@@ -130,7 +131,9 @@ class Config:
         previous_frame = inspect.currentframe().f_back
         mypath = os.path.abspath((inspect.getframeinfo(previous_frame.f_back)[2]))
         # get the path location only (excluding script name)
-        self.baseDir = mypath[0:mypath.rfind("/")+1]
+        #self.baseDir = mypath[0:mypath.rfind("/")+1]
+        self.baseDir = mypath[0:mypath.rfind(os.sep)+1]
+        self.overlayDir = os.path.join(self.baseDir, OVERLAYS_DIR)
         self.baseFileName = "speed-cam.py"
         #self.baseFileName = mypath[mypath.rfind("/")+1:mypath.rfind(".")]
         self.progName = "home_speed_detector"

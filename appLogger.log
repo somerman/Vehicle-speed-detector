@@ -1,0 +1,24 @@
+2021-10-07 10:53:41:INFO    : get_current_overlay: overlayEnabled - trying to load overlayName Z:\home_speed_detector\overlays\webcam480.ini
+2021-10-07 10:53:41:INFO    : get_current_overlay: Copy Z:\home_speed_detector\overlays\webcam480.ini to Z:\home_speed_detector\overlays\current.ini
+2021-10-07 10:53:41:INFO    : get_current_overlay: Imported Overlay Z:\home_speed_detector\overlays\webcam480.ini
+2021-10-07 10:53:41:ERROR   : <module>  : Could Not import cv2 library
+2021-10-07 10:53:41:ERROR   : <module>  : python3 failed to import cv2
+2021-10-07 10:53:41:ERROR   : <module>  : Try installing opencv for python3
+2021-10-07 10:53:41:ERROR   : <module>  : For RPI See https://github.com/pageauc/opencv3-setup
+2021-10-07 10:57:31:INFO    : get_current_overlay: overlayEnabled - trying to load overlayName Z:\home_speed_detector\overlays\webcam480.ini
+2021-10-07 10:57:31:INFO    : get_current_overlay: Copy Z:\home_speed_detector\overlays\webcam480.ini to Z:\home_speed_detector\overlays\current.ini
+2021-10-07 10:57:31:ERROR   : get_current_overlay: Copy Failed from Z:\home_speed_detector\overlays\webcam480.ini to Z:\home_speed_detector\overlays\current.ini - 'Z:\\home_speed_detector\\overlays\\webcam480.ini' and 'Z:\\home_speed_detector\\overlays\\current.ini' are the same file
+2021-10-07 10:57:31:INFO    : get_current_overlay: Check permissions, disk space, Etc.
+2021-10-07 10:57:31:WARNING : get_current_overlay: home_speed_detector 1.00 Exiting Due to Error
+2021-10-07 10:58:52:INFO    : get_current_overlay: overlayEnabled - trying to load overlayName Z:\home_speed_detector\overlays\webcam480.ini
+2021-10-07 10:58:52:INFO    : get_current_overlay: Copy Z:\home_speed_detector\overlays\webcam480.ini to Z:\home_speed_detector\overlays\current.ini
+2021-10-07 11:00:12:INFO    : get_current_overlay: Imported Overlay Z:\home_speed_detector\overlays\webcam480.ini
+2021-10-07 11:00:23:INFO    : init_settings: Application start
+2021-10-07 11:00:23:INFO    : logging_notifications: Overlay Enabled per overlayName=webcam480
+2021-10-07 13:01:46:INFO    : get_current_overlay: overlayEnabled - trying to load overlayName /home/simon/Shared/home_speed_detector/overlays/webcam480.ini
+2021-10-07 13:01:46:INFO    : get_current_overlay: Copy /home/simon/Shared/home_speed_detector/overlays/webcam480.ini to /home/simon/Shared/home_speed_detector/overlays/current.ini
+2021-10-07 13:01:46:INFO    : get_current_overlay: Imported Overlay /home/simon/Shared/home_speed_detector/overlays/webcam480.ini
+2021-10-07 13:01:52:INFO    : init_settings: Application start
+2021-10-07 13:01:52:INFO    : logging_notifications: Overlay Enabled per overlayName=webcam480
+2021-10-07 13:02:15:INFO    : init_settings: Application start
+2021-10-07 13:02:15:INFO    : logging_notifications: Overlay Enabled per overlayName=webcam480
