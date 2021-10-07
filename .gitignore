@@ -24,7 +24,7 @@ src/appLogger.log
 src/__pycache__/speed-cam.cpython-36.pyc
 src/speed-cam.csv
 home_speed_detector_Installers/Deb64/Deb64Executables
-home_speed_detector_Installers/Win_x64/Windows64Executables
+home_speed_detector_Installers/Win_x64/Windows64Executables/home_speed_detector
 src/data
 media
 *.pyc
